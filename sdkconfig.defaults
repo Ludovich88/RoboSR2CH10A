@@ -1,0 +1,28 @@
+# RoboSR2CH10A Default Configuration
+
+# Enable Zigbee support
+CONFIG_ESP_ZIGBEE_ENABLED=y
+
+# Set target chip (adjust as needed)
+CONFIG_IDF_TARGET="esp32c6"
+
+# Enable console output
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+
+# Enable logging
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+
+# Enable FreeRTOS
+CONFIG_FREERTOS_HZ=1000
+
+# Enable NVS (Non-Volatile Storage)
+CONFIG_NVS_ENABLED=y
+
+# Enable SPIFFS for file system
+CONFIG_SPIFFS_MAX_PARTITIONS=3
+
+# Enable WiFi (if needed for OTA updates)
+CONFIG_ESP32_WIFI_ENABLED=y
+
+# Enable OTA updates
+CONFIG_OTA_ALLOW_HTTP=y
