@@ -2,7 +2,7 @@
  * RoboSR2CH10A Zigbee Device
  *
  * This example code is for RoboSR2CH10A Zigbee device.
- * The device will be implemented as a Zigbee end device.
+ * The device will be implemented as a Zigbee Router with signal relaying capabilities.
  */
 
 #include "esp_check.h"
@@ -12,8 +12,8 @@
 #include "freertos/task.h"
 #include "ha/esp_zigbee_ha_standard.h"
 
-#if !defined ZB_ED_ROLE
-#error Define ZB_ED_ROLE in idf.py menuconfig to compile end device source code.
+#if !defined ZB_ZR_ROLE
+#error Define ZB_ZR_ROLE in idf.py menuconfig to compile router source code.
 #endif
 
 static const char *TAG = "ROBO_SR2CH10A";
