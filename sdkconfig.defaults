@@ -1,28 +1,31 @@
-# RoboSR2CH10A Default Configuration
+#
+# Partition Table
+#
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_OFFSET=0x8000
+CONFIG_PARTITION_TABLE_MD5=y
+# end of Partition Table
 
-# Enable Zigbee support
-CONFIG_ESP_ZIGBEE_ENABLED=y
+#
+# mbedTLS
+#
+CONFIG_MBEDTLS_HARDWARE_AES=n
+CONFIG_MBEDTLS_HARDWARE_MPI=n
+CONFIG_MBEDTLS_HARDWARE_SHA=n
+CONFIG_MBEDTLS_CMAC_C=y
+CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
+CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE=y
+# end of TLS Key Exchange Methods
 
-# Set target chip (adjust as needed)
-CONFIG_IDF_TARGET="esp32c6"
+CONFIG_MBEDTLS_ECJPAKE_C=y
+# end of mbedTLS
 
-# Enable console output
-CONFIG_ESP_CONSOLE_UART_DEFAULT=y
-
-# Enable logging
-CONFIG_LOG_DEFAULT_LEVEL_INFO=y
-
-# Enable FreeRTOS
-CONFIG_FREERTOS_HZ=1000
-
-# Enable NVS (Non-Volatile Storage)
-CONFIG_NVS_ENABLED=y
-
-# Enable SPIFFS for file system
-CONFIG_SPIFFS_MAX_PARTITIONS=3
-
-# Enable WiFi (if needed for OTA updates)
-CONFIG_ESP32_WIFI_ENABLED=y
-
-# Enable OTA updates
-CONFIG_OTA_ALLOW_HTTP=y
+#
+# Zboss
+#
+CONFIG_ZB_ENABLED=y
+CONFIG_ZB_ZED=y
+# end of Zboss
+# end of Component config
