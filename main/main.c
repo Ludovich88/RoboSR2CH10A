@@ -1,54 +1,144 @@
 /*
  * RoboSR2CH10A Zigbee Device
  *
- * This example code is for RoboSR2CH10A Zigbee device.
- * The device will be implemented as a Zigbee Router with signal relaying capabilities.
+ * Этот код предназначен для устройства RoboSR2CH10A Zigbee.
+ * Устройство реализовано как Zigbee Router (маршрутизатор) с возможностью ретрансляции сигналов.
+ * 
+ * Основные функции устройства:
+ * - Ретрансляция Zigbee сигналов между устройствами
+ * - Расширение покрытия Zigbee сети
+ * - Маршрутизация данных в сети
+ * - Поддержка подключения новых устройств к сети
  */
 
-#include "esp_check.h"
-#include "esp_log.h"
-#include "nvs_flash.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
-#include "esp_zigbee_core.h"
+// Подключение необходимых заголовочных файлов ESP-IDF
+#include "esp_check.h"        // Макросы для проверки ошибок ESP-IDF
+#include "esp_log.h"          // Система логирования ESP-IDF
+#include "nvs_flash.h"        // Работа с энергонезависимой памятью (NVS)
+#include "freertos/FreeRTOS.h" // Операционная система реального времени
+#include "freertos/task.h"    // Управление задачами FreeRTOS
+#include "esp_zigbee_core.h"  // Основные функции Zigbee стека ESP
 
+// Определение тега для логирования - используется для идентификации сообщений в логах
 static const char *TAG = "ROBO_SR2CH10A";
 
+/**
+ * @brief Обработчик сигналов Zigbee приложения
+ * 
+ * Эта функция вызывается Zigbee стеком для уведомления приложения о различных событиях:
+ * - Подключение к сети
+ * - Отключение от сети
+ * - Получение данных
+ * - Ошибки сети
+ * - Изменения в топологии сети
+ * 
+ * @param signal_struct Указатель на структуру с информацией о сигнале
+ *                      - p_app_signal: указатель на тип сигнала
+ *                      - esp_err_status: статус ошибки ESP
+ */
 void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
 {
+    // Извлекаем указатель на тип сигнала из структуры
     uint32_t *p_sg_p = signal_struct->p_app_signal;
+    
+    // Получаем статус ошибки ESP (ESP_OK если все хорошо)
     esp_err_t err_status = signal_struct->esp_err_status;
+    
+    // Получаем тип сигнала Zigbee (например, ZB_BDB_SIGNAL_DEVICE_REBOOT)
     esp_zb_app_signal_type_t sig_type = *p_sg_p;
     
+    // Выводим информацию о сигнале в лог:
+    // - esp_zb_zdo_signal_to_string() преобразует код сигнала в читаемую строку
+    // - esp_err_to_name() преобразует код ошибки в читаемую строку
     ESP_LOGI(TAG, "ZDO signal: %s (0x%x), status: %s", 
              esp_zb_zdo_signal_to_string(sig_type), sig_type, esp_err_to_name(err_status));
 }
 
+/**
+ * @brief Главная функция приложения
+ * 
+ * Эта функция является точкой входа в приложение ESP32.
+ * Выполняется после инициализации системы и загрузки.
+ * 
+ * Последовательность инициализации:
+ * 1. Инициализация системы логирования
+ * 2. Инициализация NVS (энергонезависимая память)
+ * 3. Инициализация Zigbee стека
+ * 4. Запуск основного цикла приложения
+ */
 void app_main(void)
 {
+    // Выводим информацию о запуске устройства
     ESP_LOGI(TAG, "RoboSR2CH10A Zigbee Router Starting...");
     ESP_LOGI(TAG, "ESP-IDF Version: %s", esp_get_idf_version());
     
-    /* Initialize NVS flash */
+    /* 
+     * Инициализация NVS (Non-Volatile Storage) - энергонезависимой памяти
+     * 
+     * NVS используется для хранения:
+     * - Настроек WiFi
+     * - Zigbee сетевых параметров
+     * - Конфигурации устройства
+     * - Ключей безопасности
+     * 
+     * Если NVS не инициализирована или найдена новая версия,
+     * стираем и пересоздаем раздел NVS
+     */
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        // Стираем раздел NVS если нет свободных страниц или найдена новая версия
         ESP_ERROR_CHECK(nvs_flash_erase());
+        // Повторно инициализируем NVS
         ret = nvs_flash_init();
     }
+    // Проверяем успешность инициализации NVS
     ESP_ERROR_CHECK(ret);
 
-    /* Initialize Zigbee stack */
+    /* 
+     * Инициализация Zigbee стека
+     * 
+     * Создаем конфигурацию Zigbee стека:
+     * - install_code_policy: политика использования Install Code
+     *   (false = не использовать Install Code для безопасности)
+     * 
+     * Install Code - это 128-битный ключ, используемый для безопасного
+     * подключения устройств к сети Zigbee 3.0
+     */
     esp_zb_cfg_t zigbee_cfg = {
-        .install_code_policy = false,
+        .install_code_policy = false,  // Отключаем использование Install Code
     };
+    
+    // Инициализируем Zigbee стек с заданной конфигурацией
     esp_zb_init(&zigbee_cfg);
     ESP_LOGI(TAG, "Zigbee stack initialized as Router");
     
+    // Уведомляем о завершении инициализации устройства
     ESP_LOGI(TAG, "Device initialization complete");
 
-    // Main application loop
+    /* 
+     * Основной цикл приложения
+     * 
+     * Этот цикл выполняется бесконечно и содержит основную логику приложения.
+     * В данном случае это заглушка, которая просто ждет 1 секунду между итерациями.
+     * 
+     * В реальном приложении здесь может быть:
+     * - Обработка входящих Zigbee сообщений
+     * - Отправка периодических данных
+     * - Мониторинг состояния сети
+     * - Управление GPIO пинами
+     * - Работа с датчиками
+     */
     while (1) {
-        // TODO: Implement main application logic
+        // TODO: Реализовать основную логику приложения
+        // 
+        // Примеры того, что можно добавить:
+        // - esp_zb_scheduler_alarm(1000, esp_zb_app_signal_handler, 0);
+        // - Обработка пользовательского ввода
+        // - Отправка данных на другие устройства
+        // - Мониторинг состояния сети
+        
+        // Задержка на 1000 миллисекунд (1 секунда)
+        // pdMS_TO_TICKS() преобразует миллисекунды в тики FreeRTOS
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }

@@ -1,5 +1,29 @@
-# The following lines of boilerplate have to be in your project's CMakeLists
-# in this exact order for cmake to work correctly
+# CMakeLists.txt для проекта RoboSR2CH10A
+# 
+# Этот файл является корневым файлом конфигурации сборки проекта.
+# Он определяет основные параметры проекта и подключает систему сборки ESP-IDF.
+#
+# Структура проекта:
+# - RoboSR2CH10A/          - корневая директория проекта
+#   - main/                - основной компонент приложения
+#   - components/          - дополнительные компоненты
+#   - build/               - директория сборки (создается автоматически)
+#   - sdkconfig            - конфигурация проекта
+#   - sdkconfig.defaults   - настройки по умолчанию
+
+# Минимальная версия CMake, необходимая для сборки проекта
+# ESP-IDF требует CMake версии 3.16 или выше
 cmake_minimum_required(VERSION 3.16)
+
+# Подключение системы сборки ESP-IDF
+# $ENV{IDF_PATH} - переменная окружения, указывающая на путь к ESP-IDF
+# tools/cmake/project.cmake - основной файл конфигурации сборки ESP-IDF
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
+
+# Определение имени проекта
+# Это имя используется для:
+# - Именования исполняемого файла
+# - Именования разделов в памяти
+# - Логирования и отладки
 project(RoboSR2CH10A)
+

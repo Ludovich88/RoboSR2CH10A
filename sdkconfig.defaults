@@ -1,31 +1,42 @@
+# sdkconfig.defaults - default settings for RoboSR2CH10A project
+# 
+# This file contains default configuration for ESP-IDF project.
+# Settings from this file are applied during first build
+# and can be overridden via menuconfig or sdkconfig.
+
 #
 # Partition Table
 #
-CONFIG_PARTITION_TABLE_CUSTOM=y
-CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
-CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
-CONFIG_PARTITION_TABLE_OFFSET=0x8000
-CONFIG_PARTITION_TABLE_MD5=y
+# Settings for custom partition table
+CONFIG_PARTITION_TABLE_CUSTOM=y                    # Use custom partition table
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"  # Partition table filename
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"         # Path to partition table file
+CONFIG_PARTITION_TABLE_OFFSET=0x8000                     # Partition table offset in memory
+CONFIG_PARTITION_TABLE_MD5=y                              # Enable MD5 check for partition table
 # end of Partition Table
 
 #
 # mbedTLS
 #
-CONFIG_MBEDTLS_HARDWARE_AES=n
-CONFIG_MBEDTLS_HARDWARE_MPI=n
-CONFIG_MBEDTLS_HARDWARE_SHA=n
-CONFIG_MBEDTLS_CMAC_C=y
-CONFIG_MBEDTLS_SSL_PROTO_DTLS=y
-CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE=y
+# Settings for mbedTLS library used for Zigbee encryption
+CONFIG_MBEDTLS_HARDWARE_AES=n        # Disable hardware AES acceleration (power saving)
+CONFIG_MBEDTLS_HARDWARE_MPI=n        # Disable hardware MPI acceleration (power saving)
+CONFIG_MBEDTLS_HARDWARE_SHA=n        # Disable hardware SHA acceleration (power saving)
+CONFIG_MBEDTLS_CMAC_C=y              # Enable CMAC (Cipher-based MAC) support
+CONFIG_MBEDTLS_SSL_PROTO_DTLS=y      # Enable DTLS protocol support
+CONFIG_MBEDTLS_KEY_EXCHANGE_ECJPAKE=y # Enable ECJPAKE key exchange support
 # end of TLS Key Exchange Methods
 
-CONFIG_MBEDTLS_ECJPAKE_C=y
+CONFIG_MBEDTLS_ECJPAKE_C=y           # Enable ECJPAKE algorithm support
 # end of mbedTLS
 
 #
 # Zboss
 #
-CONFIG_ZB_ENABLED=y
-CONFIG_ZB_ZCZR=y
+# Settings for ZBOSS Zigbee stack
+CONFIG_ZB_ENABLED=y                  # Enable Zigbee support
+CONFIG_ZB_ZCZR=y                     # Configure device as Zigbee Router (ZCZR)
+                                     # ZCZR = Zigbee Coordinator/Zigbee Router
+                                     # This allows device to relay signals
 # end of Zboss
 # end of Component config
