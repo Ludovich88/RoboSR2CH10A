@@ -18,6 +18,9 @@ Thumbs.db
 # Logs
 *.log
 
+# Development logs (private documentation)
+logs/
+
 # Temporary files
 *.tmp
 *.temp
