@@ -23,6 +23,6 @@ direct_dependencies:
 - espressif/esp-zboss-lib
 - espressif/esp-zigbee-lib
 - idf
-manifest_hash: f13f5191d30f4a5ca317e563cfc2ca69958e43a39e57a3820369f728c6d08f2d
+manifest_hash: da7313e18143f9e05928e7a717b5eb0b492e1422090711eaa8a1b8c4970128c1
 target: esp32c6
 version: 2.0.0
