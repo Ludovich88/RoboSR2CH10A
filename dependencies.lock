@@ -1,10 +1,4 @@
 dependencies:
-  esp-zigbee-lib:
-    dependencies: []
-    source:
-      path: C:\esp_idf\Robo_zigbee_projects\devices\RoboSR2CH10A\components\esp-zigbee-lib
-      type: local
-    version: 1.6.7
   espressif/esp-zboss-lib:
     component_hash: 321883d142421f65009972408287441794250057668a11abbdfd8bec77c3309a
     dependencies:
@@ -15,6 +9,16 @@ dependencies:
       registry_url: https://components.espressif.com/
       type: service
     version: 1.6.4
+  espressif/esp-zigbee-lib:
+    component_hash: 4b73d7dc7d018114f24712a5af1bb7a53dca95f979fe646461f066f344dd9120
+    dependencies:
+    - name: idf
+      require: private
+      version: '>=5.0'
+    source:
+      registry_url: https://components.espressif.com/
+      type: service
+    version: 1.6.7
   idf:
     source:
       type: idf
@@ -23,6 +27,6 @@ direct_dependencies:
 - espressif/esp-zboss-lib
 - espressif/esp-zigbee-lib
 - idf
-manifest_hash: da7313e18143f9e05928e7a717b5eb0b492e1422090711eaa8a1b8c4970128c1
+manifest_hash: b8aa71816607e9b71b15405da01a99ff88c5a265046328faa242a21ca83bd09d
 target: esp32c6
 version: 2.0.0
