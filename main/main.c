@@ -356,7 +356,7 @@ esp_zb_ep_list_t *esp_zb_router_ep_list_create(void)
             
             /* Добавляем атрибуты Basic Cluster */
             uint8_t zcl_version = ESP_ZB_ZCL_BASIC_ZCL_VERSION_DEFAULT_VALUE;
-            uint8_t power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_DEFAULT_VALUE;
+            uint8_t power_source = ESP_ZB_ZCL_BASIC_POWER_SOURCE_MAINS_SINGLE_PHASE; // Устройство питается от сети 220V
             esp_zb_basic_cluster_add_attr(basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_ZCL_VERSION_ID, &zcl_version);
             esp_zb_basic_cluster_add_attr(basic_cluster, ESP_ZB_ZCL_ATTR_BASIC_POWER_SOURCE_ID, &power_source);
             
@@ -562,6 +562,10 @@ static void zigbee_task(void *pvParameters)
     
     /* Инициализация Zigbee стека с конфигурацией Router */
     esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZR_CONFIG();
+    
+    /* Устанавливаем источник питания на уровне узла - устройство питается от сети */
+    esp_zb_set_node_descriptor_power_source(true); // true = main power (сеть 220V)
+    
     esp_zb_init(&zb_nwk_cfg);
     
     /* Создание endpoint list для Router устройства */
@@ -861,17 +865,43 @@ static void send_on_off_attribute(uint8_t endpoint, relay_state_t state)
     /* Используем простую функцию для установки атрибута */
     uint8_t value = (state == RELAY_ON) ? 0x01 : 0x00;
     
+    /* Блокируем Zigbee стек */
+    esp_zb_lock_acquire(portMAX_DELAY);
+    
+    /* Устанавливаем атрибут в локальном кластере */
     esp_zb_zcl_status_t ret = esp_zb_zcl_set_attribute_val(endpoint, 
                                                            ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
                                                            ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
                                                            ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
                                                            &value, 
                                                            false);
+    
+    /* Отправляем отчет об изменении атрибута */
+    if (ret == ESP_ZB_ZCL_STATUS_SUCCESS) {
+        /* Создаем команду отчета об атрибуте */
+        esp_zb_zcl_report_attr_cmd_t report_cmd = {0};
+        report_cmd.zcl_basic_cmd.dst_addr_u.addr_short = 0x0000; // Координатор
+        report_cmd.zcl_basic_cmd.src_endpoint = endpoint;
+        report_cmd.zcl_basic_cmd.dst_endpoint = 0x01;
+        report_cmd.address_mode = ESP_ZB_APS_ADDR_MODE_16_ENDP_PRESENT;
+        report_cmd.direction = ESP_ZB_ZCL_CMD_DIRECTION_TO_CLI;
+        report_cmd.clusterID = ESP_ZB_ZCL_CLUSTER_ID_ON_OFF;
+        report_cmd.attributeID = ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID;
+        
+        esp_err_t report_ret = esp_zb_zcl_report_attr_cmd_req(&report_cmd);
+        if (report_ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to send attribute report for endpoint %d: %s", 
+                     endpoint, esp_err_to_name(report_ret));
+        }
+    }
+    
+    esp_zb_lock_release();
+    
     if (ret != ESP_ZB_ZCL_STATUS_SUCCESS) {
-        ESP_LOGE(TAG, "Failed to send On/Off attribute for endpoint %d: %d", 
+        ESP_LOGE(TAG, "Failed to set On/Off attribute for endpoint %d: %d", 
                  endpoint, ret);
     } else {
-        ESP_LOGD(TAG, "On/Off attribute sent for endpoint %d: %s", 
+        ESP_LOGI(TAG, "On/Off attribute sent for endpoint %d: %s", 
                  endpoint, state == RELAY_ON ? "ON" : "OFF");
     }
 }
