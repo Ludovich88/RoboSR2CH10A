@@ -1,6 +1,21 @@
 /*
  * RoboSR2CH10A Zigbee Router Device
  *
+ * Copyright (C) 2024  RoboSR2CH10A Project
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ *
  * Этот код предназначен для устройства RoboSR2CH10A Zigbee Router.
  * Устройство реализовано как Zigbee Router (маршрутизатор) с возможностью ретрансляции сигналов.
  * 
@@ -42,7 +57,6 @@ typedef enum {
     LED_STATE_CONNECTED,         // Постоянно горит - подключен к сети
     LED_STATE_ERROR,             // Очень быстрое мигание (0.1 сек) - ошибка
     LED_STATE_PAIRING,           // Длинное мигание (2 сек) - режим пэйринга
-    LED_STATE_RELAY_ACTIVE,      // Мигание при работе реле (0.3 сек)
     LED_STATE_FACTORY_RESET,     // 3 быстрых мигания - factory reset
     LED_STATE_NETWORK_LOST,      // 2 длинных мигания - потеря сети
     LED_STATE_REBOOTING          // 5 коротких миганий - перезагрузка
@@ -51,8 +65,8 @@ typedef enum {
 /* Текущее состояние LED */
 static led_state_t current_led_state = LED_STATE_OFF;
 static led_state_t previous_led_state = LED_STATE_OFF;
-static bool relay1_active = false;
-static bool relay2_active = false;
+
+// Состояние реле теперь получаем из device_gpio.c через device_get_status()
 static uint32_t last_relay_change = 0;
 static bool network_connected = false;
 
@@ -69,19 +83,7 @@ static void send_relay_state_change(uint8_t relay_num, relay_state_t state);
 static void send_on_off_attribute(uint8_t endpoint, relay_state_t state);
 static void send_all_relay_states(void);
 
-/* Основные параметры устройства */
-#define DEVICE_NAME                 "RoboSR2CH10A"
-#define DEVICE_MANUFACTURER         "Robo"
-#define DEVICE_MODEL                "SR2CH10A"
-#define DEVICE_VERSION              "1.0.0"
-#define DEVICE_TYPE                 "Zigbee Router"
-#define DEVICE_CAPABILITIES         "Relay Control, Network Extension"
-
-/* Задачи */
-#define GPIO_TASK_STACK_SIZE        4096
-#define GPIO_TASK_PRIORITY          3
-#define DEVICE_TASK_STACK_SIZE      4096
-#define DEVICE_TASK_PRIORITY        4
+// Конфигурация устройства перенесена в device_config.h
 
 /* Zigbee Router конфигурация */
 #define ESP_ZB_ZR_CONFIG()                                       \
@@ -133,10 +135,8 @@ static esp_err_t zb_attribute_handler(esp_zb_zcl_set_attr_value_message_t *messa
         device_status_t *status = device_get_status();
         if (relay_num == 1) {
             status->relay1_state = relay_state;
-            relay1_active = (relay_state == RELAY_ON);
         } else {
             status->relay2_state = relay_state;
-            relay2_active = (relay_state == RELAY_ON);
         }
         last_relay_change = xTaskGetTickCount();
         
@@ -170,44 +170,7 @@ static esp_err_t zb_action_handler(esp_zb_core_action_callback_id_t callback_id,
     return ret;
 }
 
-/**
- * @brief Обновление атрибута On/Off в Zigbee
- * @param endpoint Номер endpoint (1 или 2)
- * @param state Состояние реле (RELAY_ON или RELAY_OFF)
- */
-void update_relay_zigbee_attr(uint8_t endpoint, relay_state_t state)
-{
-    /* Если обновление идет от Zigbee команды, не обновляем атрибут повторно */
-    if (updating_from_zigbee) {
-        ESP_LOGD(TAG, "Skipping Zigbee attribute update - already updating from Zigbee command");
-        return;
-    }
-    
-    uint8_t attr_value = (state == RELAY_ON) ? 1 : 0;
-    
-    /* Блокируем Zigbee стек для безопасного обновления атрибута */
-    esp_zb_lock_acquire(portMAX_DELAY);
-    
-    esp_zb_zcl_status_t status = esp_zb_zcl_set_attribute_val(
-        endpoint,
-        ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
-        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
-        ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
-        &attr_value,
-        false
-    );
-    
-    /* Разблокируем Zigbee стек */
-    esp_zb_lock_release();
-    
-    if (status == ESP_ZB_ZCL_STATUS_SUCCESS) {
-        ESP_LOGI(TAG, "Updated Zigbee attribute: EP=%d, State=%s", 
-                 endpoint, state == RELAY_ON ? "ON" : "OFF");
-    } else {
-        ESP_LOGE(TAG, "Failed to update Zigbee attribute: EP=%d, Status=%d", 
-                 endpoint, status);
-    }
-}
+// Функция update_relay_zigbee_attr() перемещена в device_gpio.c
 
 /**
  * @brief Задача обработки GPIO
@@ -232,21 +195,23 @@ static void gpio_task(void *pvParameters)
         /* Обработка кнопки */
         device_handle_button();
         
-        /* Обновление состояния реле для LED индикации */
-        device_status_t *status = device_get_status();
-        bool new_relay1_active = (status->relay1_state == RELAY_ON);
-        bool new_relay2_active = (status->relay2_state == RELAY_ON);
-        
         /* Проверяем изменения состояния реле и отправляем в Zigbee2MQTT */
-        if (new_relay1_active != relay1_active) {
-            relay1_active = new_relay1_active;
+        device_status_t *status = device_get_status();
+        static bool last_relay1_active = false;
+        static bool last_relay2_active = false;
+        
+        bool current_relay1_active = (status->relay1_state == RELAY_ON);
+        bool current_relay2_active = (status->relay2_state == RELAY_ON);
+        
+        if (current_relay1_active != last_relay1_active) {
+            last_relay1_active = current_relay1_active;
             if (!updating_from_zigbee) {
                 send_relay_state_change(1, status->relay1_state);
             }
         }
         
-        if (new_relay2_active != relay2_active) {
-            relay2_active = new_relay2_active;
+        if (current_relay2_active != last_relay2_active) {
+            last_relay2_active = current_relay2_active;
             if (!updating_from_zigbee) {
                 send_relay_state_change(2, status->relay2_state);
             }
@@ -731,7 +696,6 @@ void app_main(void)
     ESP_LOGI(TAG, "    * Slow blink (2s): Searching network");
     ESP_LOGI(TAG, "    * Fast blink (0.5s): Connecting to network");
     ESP_LOGI(TAG, "    * On: Connected and ready");
-    ESP_LOGI(TAG, "    * Blink when relay active: Relay 1 or 2 is ON");
     ESP_LOGI(TAG, "    * Very fast blink: Error");
     ESP_LOGI(TAG, "    * Long blink (5s): Pairing mode");
     ESP_LOGI(TAG, "    * 3 fast blinks: Factory reset");
@@ -739,94 +703,7 @@ void app_main(void)
     ESP_LOGI(TAG, "    * 5 short blinks: Rebooting");
 }
 
-/* ============================================================================
- * LED Control Functions
- * ============================================================================ */
-
-/**
- * @brief Установка состояния LED с умной логикой
- */
-static void led_set_state(led_state_t state)
-{
-    /* Сохраняем предыдущее состояние */
-    previous_led_state = current_led_state;
-    current_led_state = state;
-    
-    /* Обновляем флаг подключения к сети */
-    if (state == LED_STATE_CONNECTED) {
-        network_connected = true;
-    } else if (state == LED_STATE_CONNECTING) {
-        network_connected = false;
-    }
-    /* Не сбрасываем network_connected при LED_STATE_SEARCHING, 
-       так как это может быть временное состояние */
-    
-    ESP_LOGD(TAG, "LED state changed: %d -> %d", previous_led_state, current_led_state);
-}
-
-/**
- * @brief Выполнение паттерна мигания
- */
-static void led_blink_pattern(uint8_t count, uint32_t on_time, uint32_t off_time)
-{
-    for (uint8_t i = 0; i < count; i++) {
-        gpio_set_level(STATUS_LED_GPIO, 1);
-        vTaskDelay(pdMS_TO_TICKS(on_time));
-        gpio_set_level(STATUS_LED_GPIO, 0);
-        if (i < count - 1) {
-            vTaskDelay(pdMS_TO_TICKS(off_time));
-        }
-    }
-}
-
-/**
- * @brief Непрерывное мигание
- */
-static void led_continuous_blink(uint32_t on_time, uint32_t off_time)
-{
-    gpio_set_level(STATUS_LED_GPIO, 1);
-    vTaskDelay(pdMS_TO_TICKS(on_time));
-    gpio_set_level(STATUS_LED_GPIO, 0);
-    vTaskDelay(pdMS_TO_TICKS(off_time));
-}
-
-/**
- * @brief Показать последовательность миганий
- * @param pattern Массив состояний (1=включено, 0=выключено)
- * @param length Длина массива
- * @param base_time Базовое время для каждого состояния
- */
-static void led_show_sequence(uint8_t *pattern, uint8_t length, uint32_t base_time)
-{
-    for (uint8_t i = 0; i < length; i++) {
-        gpio_set_level(STATUS_LED_GPIO, pattern[i]);
-        vTaskDelay(pdMS_TO_TICKS(base_time));
-    }
-    gpio_set_level(STATUS_LED_GPIO, 0);
-}
-
-/**
- * @brief Показать код ошибки (количество миганий)
- * @param error_code Код ошибки (1-9)
- */
-static void led_show_error_code(uint8_t error_code)
-{
-    if (error_code == 0 || error_code > 9) return;
-    
-    /* Пауза перед показом кода */
-    vTaskDelay(pdMS_TO_TICKS(500));
-    
-    /* Показываем код ошибки */
-    for (uint8_t i = 0; i < error_code; i++) {
-        gpio_set_level(STATUS_LED_GPIO, 1);
-        vTaskDelay(pdMS_TO_TICKS(200));
-        gpio_set_level(STATUS_LED_GPIO, 0);
-        vTaskDelay(pdMS_TO_TICKS(200));
-    }
-    
-    /* Длинная пауза после кода */
-    vTaskDelay(pdMS_TO_TICKS(1000));
-}
+// LED функции перенесены в status_led.c
 
 /* ============================================================================
  * Relay State Change Functions
@@ -928,6 +805,95 @@ static void send_all_relay_states(void)
     ESP_LOGI(TAG, "All relay states sent to Zigbee2MQTT");
 }
 
+/* ============================================================================
+ * LED Control Functions
+ * ============================================================================ */
+
+/**
+ * @brief Установка состояния LED с умной логикой
+ */
+static void led_set_state(led_state_t state)
+{
+    /* Сохраняем предыдущее состояние */
+    previous_led_state = current_led_state;
+    current_led_state = state;
+    
+    /* Обновляем флаг подключения к сети */
+    if (state == LED_STATE_CONNECTED) {
+        network_connected = true;
+    } else if (state == LED_STATE_CONNECTING) {
+        network_connected = false;
+    }
+    /* Не сбрасываем network_connected при LED_STATE_SEARCHING, 
+       так как это может быть временное состояние */
+    
+    ESP_LOGD(TAG, "LED state changed: %d -> %d", previous_led_state, current_led_state);
+}
+
+/**
+ * @brief Выполнение паттерна мигания
+ */
+static void led_blink_pattern(uint8_t count, uint32_t on_time, uint32_t off_time)
+{
+    for (uint8_t i = 0; i < count; i++) {
+        gpio_set_level(STATUS_LED_GPIO, 1);
+        vTaskDelay(pdMS_TO_TICKS(on_time));
+        gpio_set_level(STATUS_LED_GPIO, 0);
+        if (i < count - 1) {
+            vTaskDelay(pdMS_TO_TICKS(off_time));
+        }
+    }
+}
+
+/**
+ * @brief Непрерывное мигание
+ */
+static void led_continuous_blink(uint32_t on_time, uint32_t off_time)
+{
+    gpio_set_level(STATUS_LED_GPIO, 1);
+    vTaskDelay(pdMS_TO_TICKS(on_time));
+    gpio_set_level(STATUS_LED_GPIO, 0);
+    vTaskDelay(pdMS_TO_TICKS(off_time));
+}
+
+/**
+ * @brief Показать последовательность миганий
+ * @param pattern Массив состояний (1=включено, 0=выключено)
+ * @param length Длина массива
+ * @param base_time Базовое время для каждого состояния
+ */
+static void led_show_sequence(uint8_t *pattern, uint8_t length, uint32_t base_time)
+{
+    for (uint8_t i = 0; i < length; i++) {
+        gpio_set_level(STATUS_LED_GPIO, pattern[i]);
+        vTaskDelay(pdMS_TO_TICKS(base_time));
+    }
+    gpio_set_level(STATUS_LED_GPIO, 0);
+}
+
+/**
+ * @brief Показать код ошибки (количество миганий)
+ * @param error_code Код ошибки (1-9)
+ */
+static void led_show_error_code(uint8_t error_code)
+{
+    if (error_code == 0 || error_code > 9) return;
+    
+    /* Пауза перед показом кода */
+    vTaskDelay(pdMS_TO_TICKS(500));
+    
+    /* Показываем код ошибки */
+    for (uint8_t i = 0; i < error_code; i++) {
+        gpio_set_level(STATUS_LED_GPIO, 1);
+        vTaskDelay(pdMS_TO_TICKS(200));
+        gpio_set_level(STATUS_LED_GPIO, 0);
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+    
+    /* Длинная пауза после кода */
+    vTaskDelay(pdMS_TO_TICKS(1000));
+}
+
 /**
  * @brief Задача управления LED
  */
@@ -1001,13 +967,8 @@ static void led_task(void *pvParameters)
                 break;
                 
             case LED_STATE_CONNECTED:
-                /* Если реле активны, показываем их состояние */
-                if (relay1_active || relay2_active) {
-                    led_continuous_blink(300, 300);
-                } else {
-                    gpio_set_level(STATUS_LED_GPIO, 1);
-                    vTaskDelay(pdMS_TO_TICKS(100));
-                }
+                gpio_set_level(STATUS_LED_GPIO, 1);
+                vTaskDelay(pdMS_TO_TICKS(100));
                 break;
                 
             case LED_STATE_ERROR:
@@ -1018,9 +979,6 @@ static void led_task(void *pvParameters)
                 led_continuous_blink(5000, 1000);  // Длинное мигание (5 сек)
                 break;
                 
-            case LED_STATE_RELAY_ACTIVE:
-                led_continuous_blink(300, 300);    // Мигание при работе реле
-                break;
                 
             case LED_STATE_FACTORY_RESET:
                 {

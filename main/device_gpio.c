@@ -14,6 +14,8 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/timers.h"
+#include "esp_zigbee_core.h"
+#include "zcl/esp_zigbee_zcl_common.h"
 
 static const char *TAG = "DEVICE_GPIO";
 
@@ -27,11 +29,7 @@ static device_status_t g_device_status = {
     .button_press_time = 0
 };
 
-/* Таймер для мигания статусного LED (устарело - используется LED task) */
-static TimerHandle_t status_led_timer = NULL;
-
-/* Callback функции для таймеров LED */
-static void status_led_timer_callback(TimerHandle_t xTimer);
+// LED управление перенесено в main.c (led_task)
 
 /**
  * @brief Инициализация GPIO пинов
@@ -74,12 +72,7 @@ void device_gpio_init(void)
     gpio_set_level(RELAY_1_GPIO, 0);
     gpio_set_level(RELAY_2_GPIO, 0);
     
-    /* Создание таймера для мигания статусного LED (устарело) */
-    status_led_timer = xTimerCreate("status_led_timer", 
-                                   pdMS_TO_TICKS(100), 
-                                   pdTRUE, 
-                                   (void*)0, 
-                                   status_led_timer_callback);
+    // LED управление перенесено в main.c (led_task)
     
     ESP_LOGI(TAG, "Device GPIO initialized successfully");
 }
@@ -155,15 +148,7 @@ void device_set_state(device_state_t new_state)
     ESP_LOGI(TAG, "Device state changed to: %d", new_state);
 }
 
-/**
- * @brief Callback для таймера LED статуса (устарело)
- */
-static void status_led_timer_callback(TimerHandle_t xTimer)
-{
-    static bool led_state = false;
-    led_state = !led_state;
-    gpio_set_level(STATUS_LED_GPIO, led_state);
-}
+// LED callback функции перенесены в main.c (led_task)
 
 /**
  * @brief Получение текущего состояния устройства
@@ -172,4 +157,46 @@ static void status_led_timer_callback(TimerHandle_t xTimer)
 device_status_t* device_get_status(void)
 {
     return &g_device_status;
+}
+
+/**
+ * @brief Обновление атрибута On/Off в Zigbee
+ * @param endpoint Номер endpoint (1 или 2)
+ * @param state Состояние реле (RELAY_ON или RELAY_OFF)
+ */
+void update_relay_zigbee_attr(uint8_t endpoint, relay_state_t state)
+{
+    /* Внешняя переменная из main.c для предотвращения циклических обновлений */
+    extern bool updating_from_zigbee;
+    
+    /* Если обновление идет от Zigbee команды, не обновляем атрибут повторно */
+    if (updating_from_zigbee) {
+        ESP_LOGD(TAG, "Skipping Zigbee attribute update - already updating from Zigbee command");
+        return;
+    }
+    
+    uint8_t attr_value = (state == RELAY_ON) ? 1 : 0;
+    
+    /* Блокируем Zigbee стек для безопасного обновления атрибута */
+    esp_zb_lock_acquire(portMAX_DELAY);
+    
+    esp_zb_zcl_status_t status = esp_zb_zcl_set_attribute_val(
+        endpoint,
+        ESP_ZB_ZCL_CLUSTER_ID_ON_OFF,
+        ESP_ZB_ZCL_CLUSTER_SERVER_ROLE,
+        ESP_ZB_ZCL_ATTR_ON_OFF_ON_OFF_ID,
+        &attr_value,
+        false
+    );
+    
+    /* Разблокируем Zigbee стек */
+    esp_zb_lock_release();
+    
+    if (status == ESP_ZB_ZCL_STATUS_SUCCESS) {
+        ESP_LOGI(TAG, "Updated Zigbee attribute: EP=%d, State=%s", 
+                 endpoint, state == RELAY_ON ? "ON" : "OFF");
+    } else {
+        ESP_LOGE(TAG, "Failed to update Zigbee attribute: EP=%d, Status=%d", 
+                 endpoint, status);
+    }
 }

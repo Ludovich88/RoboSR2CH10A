@@ -33,13 +33,27 @@
  #define BUTTON_DEBOUNCE_TIME_MS      50            // Время подавления дребезга (мс)
  #define BUTTON_LONG_PRESS_TIME_MS    3000          // Время длительного нажатия (мс)
  
- /* Настройки индикаторов */
- #define LED_BLINK_FAST_MS           100            // Быстрое мигание (мс)
- #define LED_BLINK_SLOW_MS           500            // Медленное мигание (мс)
- #define LED_BLINK_VERY_SLOW_MS      1000           // Очень медленное мигание (мс)
+/* Настройки индикаторов */
+#define LED_BLINK_FAST_MS           100            // Быстрое мигание (мс)
+#define LED_BLINK_SLOW_MS           500            // Медленное мигание (мс)
+#define LED_BLINK_VERY_SLOW_MS      1000           // Очень медленное мигание (мс)
  
- /* Zigbee Manufacturer Configuration */
- #define ZIGBEE_MANUFACTURER_CODE    0xA0FF         // Manufacturer code для manufacturer-specific атрибутов
+/* Zigbee Manufacturer Configuration */
+#define ZIGBEE_MANUFACTURER_CODE    0xA0FF         // Manufacturer code для manufacturer-specific атрибутов
+
+/* Device Information */
+#define DEVICE_NAME                 "RoboSR2CH10A"
+#define DEVICE_MANUFACTURER         "Robo"
+#define DEVICE_MODEL                "SR2CH10A"
+#define DEVICE_VERSION              "1.0.0"
+#define DEVICE_TYPE                 "Zigbee Router"
+#define DEVICE_CAPABILITIES         "Relay Control, Network Extension"
+
+/* Task Configuration */
+#define GPIO_TASK_STACK_SIZE        4096
+#define GPIO_TASK_PRIORITY          3
+#define DEVICE_TASK_STACK_SIZE      4096
+#define DEVICE_TASK_PRIORITY        4
  
  /* Состояния устройства */
  typedef enum {
